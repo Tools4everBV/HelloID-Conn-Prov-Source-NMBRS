@@ -3,14 +3,14 @@
 
 | :warning: Warning |
 |:---------------------------|
-| Note that this connector is "a work in progress" and therefore not ready to use in your production environment. |
+| Only the "current" value of the Manager, Costcenter, Department, and Function is available, No historic information is available for those entities. This current value is copied to the appropriate fields of each contract, but is not related to the specific contract. (all contracts have the same "current" value for these fields) |
 
 | :information_source: Information |
 |:---------------------------|
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
 
 <p align="center">
-  <img src="assets/logo.png">
+  <img src="assets/logo.png" width="200">
 </p>
 
 ## Table of contents
