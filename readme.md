@@ -3,14 +3,14 @@
 
 | :warning: Warning |
 |:---------------------------|
-| Only the "current" value of the Manager, Costcenter, Department, and Function is available, No historic information is available for those entities. This current value is copied to the appropriate fields of each contract, but is not related to the specific contract. (all contracts have the same "current" value for these fields) |
+| Note that this connector is "a work in progress" and therefore not ready to use in your production environment. |
 
 | :information_source: Information |
 |:---------------------------|
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
 
 <p align="center">
-  <img src="assets/logo.png" width="200">
+  <img src="assets/logo.png">
 </p>
 
 ## Table of contents
@@ -56,9 +56,9 @@ The following settings are required to connect to the API.
 
 1) The ExternalID field of the person contains the EmployeeID (MedewerkerId) of the person. This is the Unique key.
 2) The EmployeeNumber (MedewerkerNummer) is by default mapped to the "UserName" field.  This field is not unique.
-3) Only the "current" value of the Manager, Costcenter, Department, and Function is available, No historic information is available for those entities. This current value is copied to the appropriate fields of each contract, but is not related to the specific contract. (all contracts have the same "current" value for these fields)
-4) The contracts themselves do have start and end dates as normal.
-5) The call to get the current costcenter is not available at the currently used environment, therefore this is the costcenter at the time specified in the startyear and period of the person.
+3) The current value of the Manager, Costcenter, Department and Function is available. This current value is copied to the appropriate fields of each contract in helloid, but is not related to the specific contract.  (all contracts have the same "current" value for these fields)
+4) Historical information is available for NMBRS-contracts, Departments, Functions, Employments and Schedules. This are stored as "contracts" in helloid, where the "contracttype" is one of "Contract, Departments, Functions, Employments and Schedules".
+5) For contracts of type "contract", it has been found that there can be multiple contracts with the same Id. If this is the case, the current contract is retreived instead, so there will not be multiple contracts with the same id in the end result.
 
 ## Setup the connector
 

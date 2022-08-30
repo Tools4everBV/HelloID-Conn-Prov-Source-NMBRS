@@ -65,7 +65,7 @@ function Invoke-NMBRSRestMethod {
             $splatParams['Proxy'] = $config.ProxyAddress
 
         }
-        #Invoke-WebRequest @splatParams
+        
         Invoke-RestMethod @splatParams -Verbose:$false
     } catch {
         $PSCmdlet.ThrowTerminatingError($_)
