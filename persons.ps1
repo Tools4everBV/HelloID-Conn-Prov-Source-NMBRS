@@ -29,8 +29,8 @@ function Invoke-NMBRSRestMethod {
         $SoapBody
     )
 
-    switch ($service){
-        'EmployeeService'{
+    switch ($service) {
+        'EmployeeService' {
             $soapHeader = "
             <emp:AuthHeaderWithDomain>
                 <emp:Username>$($config.UserName)</emp:Username>
@@ -65,10 +65,26 @@ function Invoke-NMBRSRestMethod {
         }
         #Invoke-WebRequest @splatParams
         Invoke-RestMethod @splatParams -Verbose:$false
-    }
-    catch {
+    } catch {
         $PSCmdlet.ThrowTerminatingError($_)
     }
+}
+
+function ConvertFrom-Nillable {
+    # utility function to convert nillable objects that are actually nil to $null
+    [CmdletBinding()]
+    param (
+        [parameter(ValueFromPipeline)]
+        $OriginalObject
+    )
+    $output = $OriginalObject
+
+    if ($null -ne $OriginalObject) {
+        if ($OriginalObject.nil -eq $true) {
+            $output = $null
+        }
+    }
+    return $output
 }
 
 function Find-PersonIdByEmail {
@@ -159,7 +175,7 @@ function Get-CurrentDepartment {
 }
 
 
-function Get-CurrentContracts{
+function Get-CurrentContracts {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -179,7 +195,7 @@ function Get-CurrentContracts{
 }
 
 
-function Get-CurrentCostCenter{
+function Get-CurrentCostCenter {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -199,7 +215,7 @@ function Get-CurrentCostCenter{
 
 }
 
-function Get-CurrentFunction{
+function Get-CurrentFunction {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -218,7 +234,7 @@ function Get-CurrentFunction{
     Write-Output $response.Envelope.Body.Function_GetCurrentResponse.Function_GetCurrentResult
 }
 
-function Get-CurrentManager{
+function Get-CurrentManager {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -237,7 +253,7 @@ function Get-CurrentManager{
     Write-Output $response.Envelope.Body.Manager_GetCurrentResponse.Manager_GetCurrentResult
 }
 
-function Get-CurrentPersonalInfo{
+function Get-CurrentPersonalInfo {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -336,7 +352,7 @@ function Get-EmployeeFunctionsbyCompany {
     Write-Output $response.Envelope.Body.Function_GetAll_AllEmployeesByCompany_V2Response.Function_GetAll_AllEmployeesByCompany_V2Result.EmployeeFunctionItem_V2
 }
 
-function Get-EmployeeListbyCompany{
+function Get-EmployeeListbyCompany {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -347,9 +363,6 @@ function Get-EmployeeListbyCompany{
         [string]
         $EmployeeTypeId
     )
-
-    $employeesofType = [System.Collections.Generic.List[Object]]::new()
-
 
     $splatParams = @{
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
@@ -587,8 +600,7 @@ try {
                 if ($null -ne $Contract.ContractId) {
                     if ($null -eq $tmpcontracts[$Contract.ContractId]) {
                         $tmpcontracts[$Contract.ContractId] = $Contract
-                    }
-                    else {
+                    } else {
                         #more than one entry with the same contract id is found. This is not allowed.
                         #so the current stored one is replaced by the "current" one from NMBRS
                         $currentContracts = Get-CurrentContracts -EmployeeID $curEmployeeId
@@ -638,8 +650,7 @@ try {
         if ($EmployeeList[$curEmployeeId]) {
             $EmployeeTypeId = $EmployeeList[$curEmployeeId].EmployeeTypeId
             $EmployeetypeDescription = $EmployeeList[$curEmployeeId].EmployeeTypeDescription
-        }
-        else {
+        } else {
             $EmployeeTypeId = $null
             $EmployeetypeDescription = $null
         }
@@ -653,20 +664,20 @@ try {
                 ExternalId                = "contract_" + $employeeContract.contractID
                 ContractType              = "contract"
                 ID                        = $employeeContract.contractID
-                CreationDate              = $employeeContract.CreationDate
+                CreationDate              = $employeeContract.CreationDate | ConvertFrom-Nillable
                 CurrentDepartment         = $currentDepartment
                 CurrentEmployeeCostcenter = $currentEmployeeCostCenter
                 CurrentFunction           = $currentFunction
                 CurrentManager            = $currentManager
-                EndDate                   = $employeeContract.EndDate
-                EmploymentType            = $employeeContract.EmployementType   # typo in api Employement instead of Employment
-                EmploymentSequenceTaxId   = $employeeContract.EmploymentSequenceTaxId
-                Indefinite                = $employeeContract.Indefinite
-                PhaseClassification       = $employeeContract.PhaseClassification
+                EndDate                   = $employeeContract.EndDate | ConvertFrom-Nillable
+                EmploymentType            = $employeeContract.EmployementType | ConvertFrom-Nillable  # typo in api Employement instead of Employment
+                EmploymentSequenceTaxId   = $employeeContract.EmploymentSequenceTaxId | ConvertFrom-Nillable
+                Indefinite                = $employeeContract.Indefinite | ConvertFrom-Nillable
+                PhaseClassification       = $employeeContract.PhaseClassification | ConvertFrom-Nillable
                 Startdate                 = $EmployeeContract.Startdate
-                TrialPeriod               = $EmployeeContract.TrialPeriod
+                TrialPeriod               = $EmployeeContract.TrialPeriod | ConvertFrom-Nillable
                 WrittenContract           = $employeeContract.WrittenContract
-                HoursPerWeek              = $employeeContract.HoursPerWeek
+                HoursPerWeek              = $employeeContract.HoursPerWeek | ConvertFrom-Nillable
             }
             $Contracts.add($CurContract)
         }
@@ -679,7 +690,7 @@ try {
                 ContractType              = "department"
                 ExternalId                = "department_" + $employeeDepartment.Id
                 Code                      = $employeeDepartment.Code
-                CreationDate              = $employeeDepartment.CreationDate
+                CreationDate              = $employeeDepartment.CreationDate | ConvertFrom-Nillable
                 CurrentDepartment         = $currentDepartment
                 CurrentEmployeeCostcenter = $currentEmployeeCostCenter
                 CurrentFunction           = $currentFunction
@@ -695,19 +706,21 @@ try {
         #employments
         foreach ($employeeEmployment in  $employeeEmployments) {
 
+
             $curContract = @{
                 ContractType              = "Employment"
                 ExternalId                = "Employment_" + $employeeEmployment.EmploymentId
-                CreationDate              = $employeeEmployment.CreationDate
+                CreationDate              = $employeeEmployment.CreationDate | ConvertFrom-Nillable
                 CurrentDepartment         = $currentDepartment
                 CurrentEmployeeCostcenter = $currentEmployeeCostCenter
                 CurrentFunction           = $currentFunction
                 CurrentManager            = $currentManager
-                EndDate                   = $employeeEmployment.Enddate
+                EndDate                   = $employeeEmployment.Enddate | ConvertFrom-Nillable
                 Id                        = $employeeEmployment.EmploymentId
-                StartDate                 = $employeeEmployment.StartDate
-                InitialStartDate          = $employeeEmployment.InitialStartDate
+                StartDate                 = $employeeEmployment.StartDate | ConvertFrom-Nillable
+                InitialStartDate          = $employeeEmployment.InitialStartDate | ConvertFrom-Nillable
             }
+
             $Contracts.add($CurContract)
         }
 
@@ -717,7 +730,7 @@ try {
             $curContract = @{
                 ContractType              = "function"
                 ExternalId                = "function_" + $employeeFunction.RecordId
-                CreationDate              = $employeeFunction.CreationDate
+                CreationDate              = $employeeFunction.CreationDate | ConvertFrom-Nillable
                 CurrentDepartment         = $currentDepartment
                 CurrentEmployeeCostcenter = $currentEmployeeCostCenter
                 CurrentFunction           = $currentFunction
@@ -766,9 +779,9 @@ try {
         #Person
         $CurPerson = @{
             BurgerlijkeStaat        = $curInfo.BurgerlijkeStaat
-            #Birthday = $curInfo.Birthday
+            #Birthday = $curInfo.Birthday | ConvertFrom-Nillable
             Contracts               = $Contracts
-            CreationDate            = $curInfo.CreationDate
+            CreationDate            = $curInfo.CreationDate | ConvertFrom-Nillable
             #CountryOfBirthISOCode =$curInfo.CountryOfBirthISOCode
             EmployeeID              = $curEmployeeId
             EmployeeNumber          = $curInfo.EmployeeNumber
@@ -801,8 +814,7 @@ try {
         $CurPerson | Add-Member -NotePropertyMembers @{ DisplayName = $CurPerson.NMBRSDisplayName } -Force
         Write-Output $CurPerson | ConvertTo-Json -Depth 10
     }
-}
-catch {
+} catch {
     $ex = $PSItem
     Write-verbose -Verbose "Could not retrieve NMBRS employees. Error: $($ex.Exception.Message)"
     Write-verbose -Verbose "Could not retrieve NMBRS employees. ErrorDetails: $($ex.ErrorDetails)"
