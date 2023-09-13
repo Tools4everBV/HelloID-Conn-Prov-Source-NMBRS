@@ -169,23 +169,7 @@
             "validation": {
                 "required": false
             }
-        },
-        {
-            "name": "Manager.Email",
-            "mode": "field",
-            "value": "CurrentManager.Email",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Manager.ExternalId",
-            "mode": "field",
-            "value": "CurrentManager.Number",
-            "validation": {
-                "required": false
-            }
-        },
+        },        
         {
             "name": "StartDate",
             "mode": "field",
