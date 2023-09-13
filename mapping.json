@@ -161,7 +161,15 @@
             "validation": {
                 "required": false
             }
-        },              
+        },
+        {
+            "name": "Manager.ExternalId",
+            "mode": "field",
+            "value": "CurrentManager.Number",
+            "validation": {
+                "required": false
+            }
+        },
         {
             "name": "StartDate",
             "mode": "field",
