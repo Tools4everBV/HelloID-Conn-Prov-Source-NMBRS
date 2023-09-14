@@ -163,22 +163,6 @@
             }
         },
         {
-            "name": "Manager.DisplayName",
-            "mode": "complex",
-            "value": "function getManagerDisplayName() {\r\n    DisplayName = source.FirstName + \" \" + source.Name;   \r\n    return(DisplayName);   \r\n}",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Manager.Email",
-            "mode": "field",
-            "value": "CurrentManager.Email",
-            "validation": {
-                "required": false
-            }
-        },
-        {
             "name": "Manager.ExternalId",
             "mode": "field",
             "value": "CurrentManager.Number",
