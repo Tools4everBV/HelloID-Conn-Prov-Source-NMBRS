@@ -1,7 +1,7 @@
 ########################################################################
 # HelloID-Conn-Prov-Source-NMBRS-Departments
 #
-# Version: 1.0.0
+# Version: 1.0.1
 ########################################################################
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
@@ -68,7 +68,7 @@ function Invoke-NMBRSRestMethod {
         
         Invoke-RestMethod @splatParams -Verbose:$false
     } catch {
-        $PSCmdlet.ThrowTerminatingError($_)
+        throw $_
     }
 }
 
