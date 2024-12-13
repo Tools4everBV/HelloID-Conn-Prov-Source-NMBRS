@@ -103,8 +103,7 @@ try {
 
     foreach ($department in $departmentList) {
         $curDepartment = @{
-            ExternalId  = $department.Id
-            Code        = $department.Code            
+            ExternalId  = $department.Id            
             DisplayName = $department.Description
         }
     
