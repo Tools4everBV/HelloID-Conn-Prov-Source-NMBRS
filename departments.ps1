@@ -1,7 +1,7 @@
 ########################################################################
 # HelloID-Conn-Prov-Source-NMBRS-Departments
 #
-# Version: 1.0.1
+# Version: 1.1.1
 ########################################################################
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
@@ -30,9 +30,9 @@ function Invoke-NMBRSRestMethod {
         $SoapBody
     )
 
-    switch ($service){
+    switch ($service) {
 
-        'DebtorService'{
+        'DebtorService' {
             $soapHeader = "
             <deb:AuthHeaderWithDomain>
                 <deb:Username>$($config.UserName)</deb:Username>
@@ -67,7 +67,8 @@ function Invoke-NMBRSRestMethod {
         }
         
         Invoke-RestMethod @splatParams -Verbose:$false
-    } catch {
+    }
+    catch {
         throw $_
     }
 }
@@ -76,8 +77,8 @@ function Get-DepartmentsbyDebtor {
 
     [CmdletBinding()]
     param ( [Parameter(Mandatory)]
-    [string]
-    $DebtorId)
+        [string]
+        $DebtorId)
 
     $splatParams = @{
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/DebtorService.asmx"
@@ -96,26 +97,19 @@ function Get-DepartmentsbyDebtor {
 try {
     Write-Verbose 'Retrieving NMBRS Department data'
 
-    $departments = [System.Collections.Generic.List[Object]]::new()
-
-    $departmentList   = Get-DepartmentsbyDebtor($config.DebtorID)
-
-    foreach ($department in $departmentList)
-    {
-        $curDepartment = @{
-                Id          =   $department.Id
-                Code        =   $department.Code
-                Description =   $department.Description
-        }
-        $departments.add($curDepartment)
-    }
+    $departmentList = Get-DepartmentsbyDebtor($config.DebtorID)
 
     Write-Verbose 'Importing raw data in HelloID'
-    foreach ($department in $departments ) {
 
-        $department | Add-Member -NotePropertyMembers @{ ExternalId = $department.Id } -Force
-        $department | Add-Member -NotePropertyMembers @{ DisplayName = $department.Description} -Force
-        Write-Output $department | ConvertTo-Json -Depth 10
+    foreach ($department in $departmentList) {
+        $curDepartment = @{
+            ExternalId  = $department.Id
+            Code        = $department.Code
+            Description = $department.Description
+            DisplayName = $department.Description
+        }
+    
+        Write-Output $curDepartment | ConvertTo-Json -Depth 10
     }
 }
 catch {
