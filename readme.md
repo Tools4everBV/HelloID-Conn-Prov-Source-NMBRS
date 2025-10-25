@@ -44,6 +44,7 @@ The following settings are required to connect to the API.
 | Version | The version of the API [v3]               | Yes |
 | CompanyId | The companyId for which the employees will be imported | Yes |
 |DebtorId | The DebtorId for which the departments will be imported | Yes |
+|EndDateThreshold | The number of days after end date for which contracts will be retrieved | Yes |
 |proxyAddress| The addres of the proxy  |No |
 |IsDebug | When toggled, debug logging will be displayed |
 ### Prerequisites

@@ -65,11 +65,11 @@ function Invoke-NMBRSRestMethod {
             $splatParams['Proxy'] = $config.ProxyAddress
 
         }
-        
+
         Invoke-RestMethod @splatParams -Verbose:$false
     }
     catch {
-        throw $_
+        $PSCmdlet.ThrowTerminatingError($_)
     }
 }
 
@@ -97,17 +97,25 @@ function Get-DepartmentsbyDebtor {
 try {
     Write-Verbose 'Retrieving NMBRS Department data'
 
-    $departmentList = Get-DepartmentsbyDebtor($config.DebtorID)
+    $departments = [System.Collections.Generic.List[Object]]::new()
 
-    Write-Verbose 'Importing raw data in HelloID'
+    $departmentList = Get-DepartmentsbyDebtor($config.DebtorID)
 
     foreach ($department in $departmentList) {
         $curDepartment = @{
-            ExternalId  = $department.Id            
-            DisplayName = $department.Description
+            #Id          =   $department.Id
+            Code        = $department.Code
+            Description = $department.Description
         }
-    
-        Write-Output $curDepartment | ConvertTo-Json -Depth 10
+        $departments.add($curDepartment)
+    }
+
+    Write-Verbose 'Importing raw data in HelloID'
+    foreach ($department in $departments ) {
+
+        $department | Add-Member -NotePropertyMembers @{ ExternalId = $department.Code } -Force
+        $department | Add-Member -NotePropertyMembers @{ DisplayName = $department.Description } -Force
+        Write-Output $department | ConvertTo-Json -Depth 10
     }
 }
 catch {
