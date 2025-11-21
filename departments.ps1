@@ -1,7 +1,5 @@
 ########################################################################
 # HelloID-Conn-Prov-Source-NMBRS-Departments
-#
-# Version: 1.1.1
 ########################################################################
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
@@ -13,7 +11,6 @@ switch ($($config.IsDebug)) {
 }
 
 #region functions
-
 function Invoke-NMBRSRestMethod {
     [CmdletBinding()]
     param (
@@ -69,7 +66,7 @@ function Invoke-NMBRSRestMethod {
         Invoke-RestMethod @splatParams -Verbose:$false
     }
     catch {
-        $PSCmdlet.ThrowTerminatingError($_)
+        throw $_
     }
 }
 
@@ -84,38 +81,25 @@ function Get-DepartmentsbyDebtor {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/DebtorService.asmx"
         Service  = 'DebtorService'
         SoapBody = "<deb:Department_GetList xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/DebtorService`">
-            <deb:DebtorId>$DebtorId</deb:DebtorId>
-            </deb:Department_GetList>"
+                        <deb:DebtorId>$DebtorId</deb:DebtorId>
+                    </deb:Department_GetList>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Department_GetListResponse.Department_GetListResult.Department
 }
-
-
 #endregion
 
 try {
     Write-Verbose 'Retrieving NMBRS Department data'
 
-    $departments = [System.Collections.Generic.List[Object]]::new()
-
     $departmentList = Get-DepartmentsbyDebtor($config.DebtorID)
 
     foreach ($department in $departmentList) {
         $curDepartment = @{
-            #Id          =   $department.Id
-            Code        = $department.Code
-            Description = $department.Description
+            ExternalId  = $department.Code
+            DisplayName = $department.Description
         }
-        $departments.add($curDepartment)
-    }
-
-    Write-Verbose 'Importing raw data in HelloID'
-    foreach ($department in $departments ) {
-
-        $department | Add-Member -NotePropertyMembers @{ ExternalId = $department.Code } -Force
-        $department | Add-Member -NotePropertyMembers @{ DisplayName = $department.Description } -Force
-        Write-Output $department | ConvertTo-Json -Depth 10
+        Write-Output $curDepartment | ConvertTo-Json -Depth 10
     }
 }
 catch {

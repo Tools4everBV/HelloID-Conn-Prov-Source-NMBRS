@@ -42,7 +42,7 @@ The following settings are required to connect to the API.
 | Domain      | The Domain [mydomain.nmbrs.nl] to connect to the API                | Yes         |
 | BaseUrl | The URL to the API.[https://api.nmbrs.nl] | Yes |
 | Version | The version of the API [v3]               | Yes |
-| CompanyId | The companyId for which the employees will be imported | Yes |
+| CompanyId | Comma separated list of companyId's for which the employees will be imported | Yes |
 |DebtorId | The DebtorId for which the departments will be imported | Yes |
 |EndDateThreshold | The number of days after end date for which contracts will be retrieved | Yes |
 |proxyAddress| The addres of the proxy  |No |

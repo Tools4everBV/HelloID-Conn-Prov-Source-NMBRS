@@ -1,9 +1,8 @@
 
 ########################################################################
 # HelloID-Conn-Prov-Source-NMBRS-Persons
-#
-# Version: 1.1.1
 ########################################################################
+
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
 
@@ -12,7 +11,6 @@ switch ($($config.IsDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
-
 
 #region functions
 function Invoke-NMBRSRestMethod {
@@ -35,43 +33,43 @@ function Invoke-NMBRSRestMethod {
         'EmployeeService' {
             $soapHeader = "
             <emp:AuthHeaderWithDomain>
-            <emp:Username>$($config.UserName)</emp:Username>
-            <emp:Token>$($config.Token)</emp:Token>
-            <emp:Domain>$($config.Domain)</emp:Domain>
+                <emp:Username>$($config.UserName)</emp:Username>
+                <emp:Token>$($config.Token)</emp:Token>
+                <emp:Domain>$($config.Domain)</emp:Domain>
             </emp:AuthHeaderWithDomain>"
 
             $xmlRequest = "<?xml version=`"1.0`" encoding=`"utf-8`"?>
-        <soap:Envelope xmlns:soap = `"http://www.w3.org/2003/05/soap-envelope`" xmlns:emp=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
-        <soap:Header>
-            $soapHeader
-        </soap:Header>
-        <soap:Body>
-            $soapBody
-        </soap:Body>
-        </soap:Envelope>"
+            <soap:Envelope xmlns:soap=`"http://www.w3.org/2003/05/soap-envelope`"
+                        xmlns:emp=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
+                <soap:Header>
+                        $soapHeader
+                    </soap:Header>
+                <soap:Body>
+                        $soapBody
+                    </soap:Body>
+            </soap:Envelope>"
 
         }
         'DebtorService' {
             $soapHeader = "
             <deb:AuthHeaderWithDomain>
-            <deb:Username>$($config.UserName)</deb:Username>
-            <deb:Token>$($config.Token)</deb:Token>
-            <deb:Domain>$($config.Domain)</deb:Domain>
+                <deb:Username>$($config.UserName)</deb:Username>
+                <deb:Token>$($config.Token)</deb:Token>
+                <deb:Domain>$($config.Domain)</deb:Domain>
             </deb:AuthHeaderWithDomain>"
 
             $xmlRequest = "<?xml version=`"1.0`" encoding=`"utf-8`"?>
-        <soap:Envelope xmlns:soap = `"http://www.w3.org/2003/05/soap-envelope`" xmlns:deb=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
-        <soap:Header>
-            $soapHeader
-        </soap:Header>
-        <soap:Body>
-            $soapBody
-        </soap:Body>
-        </soap:Envelope>"
+            <soap:Envelope xmlns:soap=`"http://www.w3.org/2003/05/soap-envelope`"
+                        xmlns:deb=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
+                <soap:Header>
+                        $soapHeader
+                    </soap:Header>
+                <soap:Body>
+                        $soapBody
+                    </soap:Body>
+            </soap:Envelope>"
         }
     }
-
-    
 
     try {
         $splatParams = @{
@@ -109,39 +107,6 @@ function ConvertFrom-Nillable {
     return $output
 }
 
-function Find-PersonIdByEmail {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [hashtable]
-        $PersonalInformation,
-
-        [Parameter(Mandatory)]
-        [string]
-        $LookupEmail
-    )
-
-    $ResultEmployeeID = $null
-    $ResultEmployeeNumber = $null
-
-    foreach ($key in $personalInformationList.keys) {
-        $NMBRS_Employee = $personalInformationList[$key]
-        $curEmployeeId = $NMBRS_Employee.EmployeeId
-        $curInfo = $null
-        foreach ($info in $NMBRS_Employee.EmployeePersonalInfos.ChildNodes) {
-            if (($null -eq $Curinfo) -or ($curInfo.CreationDate -lt $info.CreationDate)) {
-                $curInfo = $info
-            }
-        }
-        if ($curInfo.EmailWork -eq $LookupEmail) {
-            $ResultEmployeeID = $curEmployeeId
-            $ResultEmployeeNumber = $curInfo.EmployeeNumber
-            break
-        }
-    }
-    return  $ResultEmployeeID, $ResultEmployeeNumber
-}
-
 function Get-CurrentDepartment {
     [CmdletBinding()]
     param (
@@ -154,8 +119,8 @@ function Get-CurrentDepartment {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:Department_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:Department_GetCurrent>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:Department_GetCurrent>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Department_GetCurrentResponse.Department_GetCurrentResult
@@ -174,8 +139,8 @@ function Get-CurrentContracts {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:Contract_GetCurrentPeriod xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:Contract_GetCurrentPeriod>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:Contract_GetCurrentPeriod>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Contract_GetCurrentResponse.Contract_GetCurrentResult.EmployeeContractItem
@@ -194,8 +159,8 @@ function Get-CurrentCostCenter {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:CostCenter_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:CostCenter_GetCurrent>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:CostCenter_GetCurrent>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.CostCenter_GetCurrentResponse.CostCenter_GetCurrentResult.EmployeeCostcenter
@@ -214,8 +179,8 @@ function Get-CurrentFunction {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:Function_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:Function_GetCurrent>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:Function_GetCurrent>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     if ($null -eq $response.Envelope.Body.Function_GetCurrentResponse.Function_GetCurrentResult) {
@@ -236,8 +201,8 @@ function Get-CurrentManager {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:Manager_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:Manager_GetCurrent>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:Manager_GetCurrent>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Manager_GetCurrentResponse.Manager_GetCurrentResult
@@ -255,51 +220,11 @@ function Get-CurrentPersonalInfo {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:PersonalInfo_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-            </emp:PersonalInfo_GetCurrent>"
+                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
+                    </emp:PersonalInfo_GetCurrent>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Manager_GetCurrentResponse.Manager_GetCurrentResult
-}
-
-function Get-EmployeeContractsbyCompany {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $CompanyId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Contract_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </emp:Contract_GetAll_AllEmployeesByCompany>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Contract_GetAll_AllEmployeesByCompanyResponse.Contract_GetAll_AllEmployeesByCompanyResult.EmployeeContractItemGlobal
-}
-
-function Get-EmployeeDepartmentsbyCompany {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $CompanyId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Department_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </emp:Department_GetAll_AllEmployeesByCompany>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Department_GetAll_AllEmployeesByCompanyResponse.Department_GetAll_AllEmployeesByCompanyResult.EmployeeDepartmentItem
 }
 
 function Get-EmployeeEmploymentsbyCompany {
@@ -315,31 +240,11 @@ function Get-EmployeeEmploymentsbyCompany {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:Employment_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </emp:Employment_GetAll_AllEmployeesByCompany>"
+                        <emp:CompanyID>$CompanyId</emp:CompanyID>
+                    </emp:Employment_GetAll_AllEmployeesByCompany>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Employment_GetAll_AllEmployeesByCompanyResponse.Employment_GetAll_AllEmployeesByCompanyResult.EmployeeEmploymentItem
-}
-
-function Get-EmployeeFunctionsbyCompany {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $CompanyId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Function_GetAll_AllEmployeesByCompany_V2 xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </emp:Function_GetAll_AllEmployeesByCompany_V2>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Function_GetAll_AllEmployeesByCompany_V2Response.Function_GetAll_AllEmployeesByCompany_V2Result.EmployeeFunctionItem_V2
 }
 
 function Get-EmployeeListbyCompany {
@@ -358,32 +263,13 @@ function Get-EmployeeListbyCompany {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:List_GetByCompany>
-            <emp:CompanyId>$CompanyId</emp:CompanyId>
-            <emp:EmployeeType>$EmployeeTypeId</emp:EmployeeType>
-            </emp:List_GetByCompany>"
+                        <emp:CompanyId>$CompanyId</emp:CompanyId>
+                        <emp:EmployeeType>$EmployeeTypeId</emp:EmployeeType>
+                    </emp:List_GetByCompany>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.List_GetByCompanyResponse.List_GetByCompanyResult.Employee
 
-}
-function Get-EmployeeSchedulesbyCompany {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $CompanyId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Schedule_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </emp:Schedule_GetAll_AllEmployeesByCompany>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Schedule_GetAll_AllEmployeesByCompanyResponse.Schedule_GetAll_AllEmployeesByCompanyResult.EmployeeScheduleItem
 }
 
 function Get-EmployeeTypes {
@@ -393,7 +279,7 @@ function Get-EmployeeTypes {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<emp:EmployeeType_GetList xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            </emp:EmployeeType_GetList>"
+                    </emp:EmployeeType_GetList>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.EmployeeType_GetListResponse.EmployeeType_GetListResult.EmployeeType
@@ -412,32 +298,12 @@ function Get-PersonalInfoWithoutBSN {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
         Service  = 'EmployeeService'
         SoapBody = "<PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompany>"
+                        <emp:CompanyID>$CompanyId</emp:CompanyID>
+                    </PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompany>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompanyResponse.PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompanyResult.PersonalInfoItem
 }
-
-function Get-PersonalInfo {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $CompanyId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<PersonalInfo_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-            <emp:CompanyID>$CompanyId</emp:CompanyID>
-            </PersonalInfo_GetAll_AllEmployeesByCompany>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.PersonalInfo_GetAll_AllEmployeesByCompanyResponse.PersonalInfo_GetAll_AllEmployeesByCompanyResult.PersonalInfoItem
-}
-
 #endregion functions
 
 try {
@@ -473,8 +339,7 @@ try {
             }
             
             $active = $EmployeeList[$curInfo.EmployeeNumber]
-            if ($null -ne $active) {
-                #foreach ($employee in $tmpEmployeeLookupList) {            
+            if ($null -ne $active) {          
                 $tmpEmployee = @{
                     Number    = $curInfo.EmployeeNumber
                     EmailWork = $curInfo.EmailWork
@@ -487,10 +352,8 @@ try {
                     $EmployeeLookupList.add($tmpEmployee.EmailWork, $tmpEmployee.EmployeeId)
                 }
             }
-            #}
         }
     }
-
 
     foreach ($companyid in $config.CompanyId.Split(',')) {
         
@@ -515,21 +378,18 @@ try {
         }
 
         # contracts
-        #$tmpContractList         = Get-EmployeeContractsbyCompany -CompanyId $CompanyId
         [hashtable]$ContractList = @{}
         foreach ($ContractItem in $tmpContractList) {
             $ContractList.add($ContractItem.EmployeeID, $ContractItem)
         }
 
         # departments
-        #$tmpDepartmentList        = Get-EmployeeDepartmentsByCompany -CompanyId $CompanyId
         [hashtable]$DepartmentList = @{}
         foreach ($DepartmentItem in $tmpDepartmentList) {
             $DepartmentList.add($DepartmentItem.EmployeeID, $DepartmentItem)
         }
 
         # functions
-        #$tmpFunctionList        = Get-EmployeeFunctionsByCompany -CompanyId $CompanyId
         [hashtable]$FunctionList = @{}
         foreach ($FunctionItem in $tmpFunctionList) {
             $FunctionList.add($FunctionItem.EmployeeID, $functionItem)
@@ -541,7 +401,6 @@ try {
             $EmploymentList.add($EmploymentItem.EmployeeID, $EmploymentItem)
         }
         # schedules
-        #$tmpScheduleList        = Get-EmployeeSchedulesByCompany -CompanyId $CompanyId
         [hashtable]$ScheduleList = @{}
         foreach ($ScheduleItem in $tmpScheduleList) {
             $ScheduleList.add($ScheduleItem.EmployeeID, $ScheduleItem)
@@ -563,12 +422,9 @@ try {
 
         ## Global lists have been collected
         ## main loop to create the persons
-
         foreach ($key in $personalInformationList.keys) {
             $NMBRS_Employee = $personalInformationList[$key]
             $curEmployeeId = $NMBRS_Employee.EmployeeId
-
-            #Write-Verbose "Retrieving NMBRS employee data for EmployeeID [$curEmployeeId]"
 
             # Find the current personal data record of the Employee
             $curInfo = $null
@@ -642,7 +498,6 @@ try {
                 ID          = $GetCostcenterResult.Id
                 Percentage  = $GetCostcenterResult.Percentage
                 default     = $GetCostcenterResult.default
-                #Locatie     = $tmpLocatiegegevens
             }
 
             #employeeContracts; if more than one contract with the same Id is found, only the current one is retained
@@ -771,8 +626,6 @@ try {
 
             #Departments
             foreach ($employeeDepartment in  $employeeDepartments) {
-
-
                 $curContract = @{
                     ContractType              = "department"
                     ExternalId                = "department_" + $employeeDepartment.Id
@@ -792,7 +645,6 @@ try {
 
             #employments
             foreach ($employeeEmployment in  $employeeEmployments) {                
-                
                 $curContract = @{
                     ContractType              = "Employment"
                     ExternalId                = "Employment_" + $employeeEmployment.EmploymentId
@@ -808,12 +660,10 @@ try {
                     CompanyId                 = $companyId
                 }
                 $Contracts.add($CurContract)
-                
             }
 
             #functions
             foreach ($employeeFunction in  $employeeFunctions) {
-
                 $curContract = @{
                     ContractType              = "function"
                     ExternalId                = "function_" + $employeeFunction.RecordId
@@ -834,7 +684,6 @@ try {
 
             #Schedules
             foreach ($employeeSchedule in  $employeeSchedules) {
-
                 $curContract = @{
                     ContractType              = "Schedule"
                     ExternalId                = "Schedule_" + $employeeSchedule.Id
@@ -876,7 +725,6 @@ try {
 					CreationDate            = $curInfo.CreationDate | ConvertFrom-Nillable
 					CountryOfBirthISOCode   = $curInfo.CountryOfBirthISOCode
 					EmployeeID              = $curEmployeeId
-					#EmployeeNumber          = $curInfo.EmployeeNumber
 					EmployeeNumber          = $companyId + "_" + $curInfo.EmployeeNumber
 					EmployeeTypeId          = $EmployeeTypeId
 					EmployeeTypeDescription = $EmployeeTypeDescription
@@ -886,26 +734,20 @@ try {
 					Gender                  = $curInfo.Gender
 					infoId                  = $curInfo.id
 					Initials                = $info.Initials
-					#IdentificationNumber   = $curInfo.IdentificationNumber
-					#IndentificationType    = $curInfo.IdentificationType
 					LastName                = $curInfo.LastName
 					NaamStelling            = $curInfo.Naamstelling
-					#NationalityCode        = $info.NationalityCode
 					NickName                = $curInfo.Nickname
 					PartnerLastName         = $curInfo.PartnerLastName
 					PartnerPrefix           = $curInfo.PartnerPrefix
 					Prefix                  = $curInfo.Prefix
 					Startperiod             = $curInfo.StartPeriod
 					StartYear               = $curInfo.StartYear
-					#TelephonePrivate       = $info.TelephonePrivate
 					TelephoneMobilePrivate  = $info.TelephoneMobilePrivate
 					TelephoneMobileWork     = $curInfo.TelephoneMobileWork													  
 					Title                   = $curInfo.Title
 					TitleAfter              = $curInfo.TitleAfter
 					EmailPrivate            = $curinfo.EmailPrivate 												  
                 }
-
-                
 
                 $CurPerson | Add-Member -NotePropertyMembers @{ ExternalId = $CurPerson.EmployeeID } -Force
                 $CurPerson | Add-Member -NotePropertyMembers @{ DisplayName = $CurPerson.NMBRSDisplayName } -Force
