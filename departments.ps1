@@ -1,7 +1,5 @@
 ########################################################################
 # HelloID-Conn-Prov-Source-NMBRS-Departments
-#
-# Version: 1.1.1
 ########################################################################
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
@@ -13,7 +11,6 @@ switch ($($config.IsDebug)) {
 }
 
 #region functions
-
 function Invoke-NMBRSRestMethod {
     [CmdletBinding()]
     param (
@@ -65,7 +62,7 @@ function Invoke-NMBRSRestMethod {
             $splatParams['Proxy'] = $config.ProxyAddress
 
         }
-        
+
         Invoke-RestMethod @splatParams -Verbose:$false
     }
     catch {
@@ -84,14 +81,12 @@ function Get-DepartmentsbyDebtor {
         Uri      = "$($config.BaseUrl)/soap/$($config.version)/DebtorService.asmx"
         Service  = 'DebtorService'
         SoapBody = "<deb:Department_GetList xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/DebtorService`">
-            <deb:DebtorId>$DebtorId</deb:DebtorId>
-            </deb:Department_GetList>"
+                        <deb:DebtorId>$DebtorId</deb:DebtorId>
+                    </deb:Department_GetList>"
     }
     [xml]$response = Invoke-NMBRSRestMethod @splatParams
     Write-Output $response.Envelope.Body.Department_GetListResponse.Department_GetListResult.Department
 }
-
-
 #endregion
 
 try {
@@ -99,14 +94,11 @@ try {
 
     $departmentList = Get-DepartmentsbyDebtor($config.DebtorID)
 
-    Write-Verbose 'Importing raw data in HelloID'
-
     foreach ($department in $departmentList) {
         $curDepartment = @{
-            ExternalId  = $department.Id            
+            ExternalId  = $department.Code
             DisplayName = $department.Description
         }
-    
         Write-Output $curDepartment | ConvertTo-Json -Depth 10
     }
 }

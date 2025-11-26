@@ -1,206 +1,238 @@
 {
-    "personMappings": [
-        {
-            "name": "Contact.Business.Email",
-            "mode": "field",
-            "value": "EmailWork",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Details.HonorificPrefix",
-            "mode": "field",
-            "value": "Title",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Details.HonorificSuffix",
-            "mode": "field",
-            "value": "TitleAfter",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "ExternalId",
-            "mode": "field",
-            "value": "ExternalId",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.Convention",
-            "mode": "complex",
-            "value": "function formatNamingConvention()\r\n{\r\n    switch(source.Naamgebruik_code)\r\n    {\r\n        case \"0\":\r\n            return \"B\";\r\n        break;\r\n        case \"1\":\r\n            return \"B\";\r\n        break;\r\n        case \"2\":\r\n            return \"P\";\r\n        break;\r\n        case \"3\":\r\n            return \"PB\";\r\n        break;\r\n        default:\r\n            return \"BP\";\r\n        break;\r\n    }\r\n}\r\nformatNamingConvention();",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.FamilyName",
-            "mode": "field",
-            "value": "LastName",
-            "validation": {
-                "required": true
-            }
-        },
-        {
-            "name": "Name.FamilyNamePartner",
-            "mode": "field",
-            "value": "PartnerLastName",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.FamilyNamePartnerPrefix",
-            "mode": "field",
-            "value": "PartnerPrefix",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.FamilyNamePrefix",
-            "mode": "field",
-            "value": "Prefix",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.GivenName",
-            "mode": "field",
-            "value": "NickName",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.Initials",
-            "mode": "field",
-            "value": "Initials",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Name.NickName",
-            "mode": "field",
-            "value": "NickName",
-            "validation": {
-                "required": true
-            }
-        },
-        {
-            "name": "UserName",
-            "mode": "field",
-            "value": "EmployeeNumber",
-            "validation": {
-                "required": false
-            }
-        }
-    ],
-    "contractMappings": [
-        {
-            "name": "CostCenter.Code",
-            "mode": "field",
-            "value": "CurrentEmployeeCostcenter.CostCenter.Code",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "CostCenter.ExternalId",
-            "mode": "field",
-            "value": "CurrentEmployeeCostcenter.ID",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "CostCenter.Name",
-            "mode": "field",
-            "value": "CurrentEmployeeCostcenter.CostCenter.Description",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Department.DisplayName",
-            "mode": "field",
-            "value": "CurrentDepartment.Description",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Department.ExternalId",
-            "mode": "field",
-            "value": "CurrentDepartment.ID",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "EndDate",
-            "mode": "field",
-            "value": "EndDate",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "ExternalId",
-            "mode": "field",
-            "value": "ExternalId",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Manager.ExternalId",
-            "mode": "field",
-            "value": "CurrentManager.Number",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "StartDate",
-            "mode": "field",
-            "value": "Startdate",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Title.Code",
-            "mode": "field",
-            "value": "CurrentFunction.Code",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Title.ExternalId",
-            "mode": "field",
-            "value": "CurrentFunction.ID",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Title.Name",
-            "mode": "field",
-            "value": "CurrentFunction.Description",
-            "validation": {
-                "required": false
-            }
-        }
-    ]
+	"personMappings": [	
+		{
+			"name": "Contact.Business.Email",
+			"mode": "field",
+			"value": "EmailWork",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Contact.Business.Phone.Fixed",
+			"mode": "field",
+			"value": "TelephoneMobileWork",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Contact.Business.Phone.Mobile",
+			"mode": "field",
+			"value": "TelephoneMobileWork",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Details.BirthDate",
+			"mode": "complex",
+			"value": "function generateBirthDate(){\r\n    let birthDate = source.Birthday;\r\n    if(birthDate != 'undefined' && birthDate && birthDate != 'System.Collections.Generic.List`1[System.Object]' ){\r\n        birthDate = source.Birthday;\r\n        if(birthDate == \"0001-01-01T00:00:00\"){\r\n           birthDate = \"\" \r\n        }\r\n    }\r\n    return birthDate;\r\n}\r\ngenerateBirthDate()",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Details.Gender",
+			"mode": "complex",
+			"value": "function getGender() {\r\n    if(source.Gender == \"1\") {\r\n        return \"Man\";\r\n    }\r\n    if(source.Gender == \"2\") {\r\n        return \"Vrouw\";\r\n    }\r\n    else{\r\n        return \"Onbekend\";\r\n    }\r\n} \r\n \r\ngetGender();",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Details.HonorificSuffix",
+			"mode": "field",
+			"value": "TitleAfter",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "ExternalId",
+			"mode": "field",
+			"value": "ExternalId",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.Convention",
+			"mode": "complex",
+			"value": "\r\nfunction formatNamingConvention()\r\n{\r\n    switch(source.NaamStelling)\r\n    {\r\n        case \"1\":\r\n            return \"B\";\r\n        break;\r\n        case \"2\":\r\n            return \"P\";\r\n        break;\r\n        case \"3\":\r\n            return \"PB\";\r\n        break;\r\n        case \"4\":\r\n            return \"BP\";\r\n        break;\r\n        default:\r\n            return \"B\";\r\n        break;\r\n    }\r\n}\r\nformatNamingConvention();",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.FamilyName",
+			"mode": "field",
+			"value": "LastName",
+			"validation": {
+				"required": true
+			}
+		},
+		{
+			"name": "Name.FamilyNamePartner",
+			"mode": "field",
+			"value": "PartnerLastName",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.FamilyNamePartnerPrefix",
+			"mode": "field",
+			"value": "PartnerPrefix",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.FamilyNamePrefix",
+			"mode": "field",
+			"value": "Prefix",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.Initials",
+			"mode": "field",
+			"value": "Initials",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Name.NickName",
+			"mode": "field",
+			"value": "NickName",
+			"validation": {
+				"required": true
+			}
+		}
+	],
+	"contractMappings": [
+		{
+			"name": "CostCenter.ExternalId",
+			"mode": "field",
+			"value": "CurrentEmployeeCostcenter.CostCenter.Code",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "CostCenter.Name",
+			"mode": "field",
+			"value": "CurrentEmployeeCostcenter.CostCenter.Description",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Department.DisplayName",
+			"mode": "field",
+			"value": "CurrentDepartment.Description",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Department.ExternalId",
+			"mode": "field",
+			"value": "CurrentDepartment.Code",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Details.Fte",
+			"mode": "field",
+			"value": "HoursPerWeek",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Details.Percentage",
+			"mode": "field",
+			"value": "CurrentEmployeeCostcenter.Percentage",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Employer.ExternalId",
+			"mode": "field",
+			"value": "CompanyId",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Employer.Name",
+			"mode": "field",
+			"value": "CompanyId",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "EndDate",
+			"mode": "complex",
+			"value": "\r\nfunction generateEndDate(){\r\n    let endDate = sourceContract.EndDate;\r\n\r\n    if(endDate != 'undefined' && endDate && endDate != 'System.Collections.Generic.List`1[System.Object]' ){\r\n\r\n        endDate = sourceContract.EndDate;\r\n        if(endDate == \"0001-01-01T00:00:00\"){\r\n           endDate = \"\" \r\n        }\r\n\r\n\r\n    } else{\r\n\r\n        endDate = \"\";\r\n    }\r\n\r\n    return endDate;\r\n}\r\ngenerateEndDate()\r\n",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "ExternalId",
+			"mode": "field",
+			"value": "ExternalId",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Manager.ExternalId",
+			"mode": "field",
+			"value": "CurrentManager.EmployeeID",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "StartDate",
+			"mode": "field",
+			"value": "StartDate",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Title.Code",
+			"mode": "field",
+			"value": "CurrentFunction.ID",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Title.ExternalId",
+			"mode": "field",
+			"value": "CurrentFunction.Code",
+			"validation": {
+				"required": false
+			}
+		},
+		{
+			"name": "Title.Name",
+			"mode": "field",
+			"value": "CurrentFunction.Description",
+			"validation": {
+				"required": false
+			}
+		}
+	]
 }
