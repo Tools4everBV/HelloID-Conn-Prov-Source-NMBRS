@@ -6,245 +6,207 @@
 # Initialize default value's
 $config = $Configuration | ConvertFrom-Json
 
-# Set debug logging
-switch ($($config.IsDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 #region functions
-function Invoke-NMBRSRestMethod {
+function Get-AuthToken {
     [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $Uri,
+    param ()  
 
-        [Parameter(Mandatory)]
-        [string]
-        $Service,
+    $refreshToken = $null
 
-        [Parameter(Mandatory)]
-        [string]
-        $SoapBody
-    )
-
-    switch ($service) {
-        'EmployeeService' {
-            $soapHeader = "
-            <emp:AuthHeaderWithDomain>
-                <emp:Username>$($config.UserName)</emp:Username>
-                <emp:Token>$($config.Token)</emp:Token>
-                <emp:Domain>$($config.Domain)</emp:Domain>
-            </emp:AuthHeaderWithDomain>"
-
-            $xmlRequest = "<?xml version=`"1.0`" encoding=`"utf-8`"?>
-            <soap:Envelope xmlns:soap=`"http://www.w3.org/2003/05/soap-envelope`"
-                        xmlns:emp=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
-                <soap:Header>
-                        $soapHeader
-                    </soap:Header>
-                <soap:Body>
-                        $soapBody
-                    </soap:Body>
-            </soap:Envelope>"
-
+    if ([System.IO.File]::Exists($config.RefreshTokenSaveFile)) {
+        $savedRefreshToken = Get-Content -Path $config.RefreshTokenSaveFile -Raw
+        try {
+            $secureRefreshToken = ConvertTo-SecureString -String $savedRefreshToken
+            $refreshToken = (New-Object System.Net.NetworkCredential('', $secureRefreshToken)).Password
         }
-        'DebtorService' {
-            $soapHeader = "
-            <deb:AuthHeaderWithDomain>
-                <deb:Username>$($config.UserName)</deb:Username>
-                <deb:Token>$($config.Token)</deb:Token>
-                <deb:Domain>$($config.Domain)</deb:Domain>
-            </deb:AuthHeaderWithDomain>"
-
-            $xmlRequest = "<?xml version=`"1.0`" encoding=`"utf-8`"?>
-            <soap:Envelope xmlns:soap=`"http://www.w3.org/2003/05/soap-envelope`"
-                        xmlns:deb=`"https://api.nmbrs.nl/soap/$($config.version)/$service`">
-                <soap:Header>
-                        $soapHeader
-                    </soap:Header>
-                <soap:Body>
-                        $soapBody
-                    </soap:Body>
-            </soap:Envelope>"
+        catch {
+           
+            throw 'The saved refresh token could not be decrypted. Run this script under the Windows account that saved it, or remove the file and provide a new refresh token.'
+           
         }
     }
+    if ([string]::IsNullOrEmpty($refreshToken)) {    
+        $refreshToken = $config.RefreshToken 
+    }   
+    $headers = @{
+        'content-type'  = 'application/x-www-form-urlencoded'
+        'Authorization' = "Basic " + [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($config.Client_id):$($config.Client_secret)"))
+        'host'          = "$($config.Tokenhost)"
+    }
+    $body = "refresh_token=$($refreshToken)&grant_type=refresh_token"
+    $splatApitoken = @{
+        Uri     = $Config.TokenUrl
+        Method  = 'POST'
+        Body    = $body
+        Headers = $headers
+    }
 
+    if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+        $splatApitoken['Proxy'] = $config.ProxyAddress
+    }
     try {
-        $splatParams = @{
-            Uri         = $Uri
-            Method      = 'POST'
-            Body        = $xmlRequest
-            ContentType = 'text/xml; charset=utf-8'
-        }
-
-        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
-            $splatParams['Proxy'] = $config.ProxyAddress
-
-        }
-        Invoke-RestMethod @splatParams -Verbose: $false
+        $result = Invoke-RestMethod @splatApitoken        
+        $secureRefreshToken = ConvertTo-SecureString -String $result.refresh_token -AsPlainText -Force
+        ConvertFrom-SecureString -SecureString $secureRefreshToken | Set-Content -Path $config.RefreshTokenSaveFile -Encoding ASCII -NoNewline       
+        return $result
     }
     catch {
         throw $_
     }
 }
 
-function ConvertFrom-Nillable {
-    # utility function to convert nillable objects that are actually nil to $null
+function Get-CompanyList {
     [CmdletBinding()]
-    param (
-        [parameter(ValueFromPipeline)]
-        $OriginalObject
-    )
-    $output = $OriginalObject
+    param ()
 
-    if ($null -ne $OriginalObject) {
-        if ($OriginalObject.nil -eq $true) {
-            $output = $null
+    [hashtable]$companyList = @{}
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
+    }
+
+    $pageSize = 50
+    [int] $pageNumber = 1
+    $uri = "$($config.BaseUrl)/companies?pageNumber=$pageNumber&pageSize=$pageSize"
+
+    do {    
+        $splatParams = @{
+            Uri     = $uri
+            Method  = 'GET'
+            Headers = $Headers
         }
-    }
-    return $output
+
+        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+            $splatParams['Proxy'] = $config.ProxyAddress
+        }
+        $Response = Invoke-RestMethod @splatParams 
+        if ($Response.pagination.TotalPages -gt 10000) {
+            Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+            throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+        }
+        foreach ($CompanyInfoItem in $Response.data) {
+            $companyList.add($CompanyInfoItem.name, $CompanyInfoItem)
+        } 
+        $uri = $Response.pagination.NextPage
+        $pageNumber++                
+    } while ($pageNumber -le $Response.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false )  
+    Write-Output $companyList 
 }
 
-function Get-CurrentDepartment {
+function Get-DebtorList {
     [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
+    param ()
 
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Department_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:Department_GetCurrent>"
+    [hashtable]$debtorList = @{}
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Department_GetCurrentResponse.Department_GetCurrentResult
+
+    $pageSize = 50
+    [int] $pageNumber = 1
+    $uri = "$($config.BaseUrl)/debtors?pageNumber=$pageNumber&pageSize=$pageSize"
+
+    do {    
+        $splatParams = @{
+            Uri     = $uri
+            Method  = 'GET'
+            Headers = $Headers
+        }
+
+        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+            $splatParams['Proxy'] = $config.ProxyAddress
+        }
+        $Response = Invoke-RestMethod @splatParams 
+        if ($Response.pagination.TotalPages -gt 10000) {
+            Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+            throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+        }
+        foreach ($debtor in $Response.data) {
+            $debtorList.add($debtor.name, $debtor.debtorID)
+        } 
+        $uri = $Response.pagination.NextPage
+        $pageNumber++                
+    } while ($pageNumber -le $Response.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false)  
+    Write-Output $debtorList 
 }
+function Get-ManagerEmailDepartmentsList {
+    
+    $DebtorList = Get-DebtorList
+    [hashtable]$ManagerEmailDepartmentsList = @{}
+    foreach ($debtorName in $config.DebtorName.Split(',')) {
+        $debtorId = $DebtorList[$debtorName]
 
+        if ($null -eq $debtorId) {
+            throw "Debtor $debtorName not found in the list of debtors"
+        }
 
-function Get-CurrentContracts {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
+        $Headers = @{
+            'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+            'X-Subscription-Key' = "$($config.subscriptionKey)"
+        }
 
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Contract_GetCurrentPeriod xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:Contract_GetCurrentPeriod>"
+        $pageSize = 50
+        [int] $pageNumber = 1
+        $uri = "$($config.BaseUrl)/debtors/$debtorId/departments?pageNumber=$pageNumber&pageSize=$pageSize"   
+        do {    
+            $splatdepartmentList = @{
+                Uri     = $uri
+                Method  = 'GET'
+                Headers = $Headers
+            }
+            if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+                $splatdepartmentList['Proxy'] = $config.ProxyAddress
+            }
+
+            $departmentListResponse = Invoke-RestMethod @splatdepartmentList 
+            if ($departmentListResponse.pagination.TotalPages -gt 10000) {
+                Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+                throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+            }
+            foreach ($department in $departmentListResponse.Data) {               
+                foreach ($manager in $department.Managers) {
+                    if (-not [string]::IsNullOrEmpty($manager.Email)) {
+                        if (-not $ManagerEmailDepartmentsList.ContainsKey($manager.Email)) {
+                            $ManagerEmailDepartmentsList.add($manager.Email, @() )
+                        }
+                        $ManagerEmailDepartmentsList[$manager.Email] += $department                                                                          
+                    }
+                }               
+            }
+            $uri = $departmentListResponse.pagination.NextPage
+            $pageNumber++   
+                     
+        } while ($pageNumber -le $departmentListResponse.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false) 
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Contract_GetCurrentResponse.Contract_GetCurrentResult.EmployeeContractItem
+    return $ManagerEmailDepartmentsList
 }
-
-
-function Get-CurrentCostCenter {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:CostCenter_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:CostCenter_GetCurrent>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.CostCenter_GetCurrentResponse.CostCenter_GetCurrentResult.EmployeeCostcenter
-
-}
-
-function Get-CurrentFunction {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Function_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:Function_GetCurrent>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    if ($null -eq $response.Envelope.Body.Function_GetCurrentResponse.Function_GetCurrentResult) {
-        Write-Host $employeeid
-    }
-    Write-Output $response.Envelope.Body.Function_GetCurrentResponse.Function_GetCurrentResult
-}
-
-function Get-CurrentManager {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Manager_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:Manager_GetCurrent>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Manager_GetCurrentResponse.Manager_GetCurrentResult
-}
-
-function Get-CurrentPersonalInfo {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]
-        $EmployeeId
-    )
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:PersonalInfo_GetCurrent xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:EmployeeId>$EmployeeId</emp:EmployeeId>
-                    </emp:PersonalInfo_GetCurrent>"
-    }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Manager_GetCurrentResponse.Manager_GetCurrentResult
-}
-
-function Get-EmployeeEmploymentsbyCompany {
-
-    [CmdletBinding()]
+function Get-CompanyCurrentPeriod {
     param (
         [Parameter(Mandatory)]
         [string]
         $CompanyId
     )
 
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:Employment_GetAll_AllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:CompanyID>$CompanyId</emp:CompanyID>
-                    </emp:Employment_GetAll_AllEmployeesByCompany>"
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.Employment_GetAll_AllEmployeesByCompanyResponse.Employment_GetAll_AllEmployeesByCompanyResult.EmployeeEmploymentItem
+    $uri = "$($config.BaseUrl)/companies/$CompanyId/period"
+    $splatParams = @{
+        Uri     = $uri
+        Method  = 'GET'
+        Headers = $Headers
+    }
+    if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+        $splatParams['Proxy'] = $config.ProxyAddress
+    }
+    $Response = Invoke-RestMethod @splatParams 
+    if (-not $Response.pagination.TotalRecords -eq 1) {
+        throw "Expected exactly one period record for CompanyID $CompanyId, but found $($Response.pagination.TotalRecords)"
+    }
+    $CurrentPeriod = $Response.data[0]    
+    return $CurrentPeriod  
 }
 
 function Get-EmployeeListbyCompany {
@@ -256,37 +218,90 @@ function Get-EmployeeListbyCompany {
 
         [Parameter(Mandatory)]
         [string]
-        $EmployeeTypeId
+        $EmployeeType
     )
 
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:List_GetByCompany>
-                        <emp:CompanyId>$CompanyId</emp:CompanyId>
-                        <emp:EmployeeType>$EmployeeTypeId</emp:EmployeeType>
-                    </emp:List_GetByCompany>"
+    [hashtable]$employeeList = @{}
+    [hashtable]$employeeEmailLookupList = @{}
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.List_GetByCompanyResponse.List_GetByCompanyResult.Employee
+    $pageSize = 50
+    [int] $pageNumber = 1
+    $uri = "$($config.BaseUrl)/companies/$CompanyId/employees?employeeType=$EmployeeType&pageNumber=$pageNumber&pageSize=$pageSize"
+    do {    
+        $splatParams = @{
+            Uri     = $uri
+            Method  = 'GET'
+            Headers = $Headers
+        }
+
+        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+            $splatParams['Proxy'] = $config.ProxyAddress
+        }
+        $Response = Invoke-RestMethod @splatParams 
+        if ($Response.pagination.TotalPages -gt 10000) {
+            Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+            throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+        }
+        foreach ($PersonalInfoItem in $Response.data) {
+            $tmpEmployee = Get-Employee -EmployeeID $PersonalInfoItem.EmployeeID
+            $employeeList.add($PersonalInfoItem.EmployeeID, $tmpEmployee)
+            if (-not [string]::IsNullOrEmpty($tmpEmployee.PersonalInfo.ContactInfo.businessEmail)) {
+                $employeeEmailLookupList.add($tmpEmployee.PersonalInfo.ContactInfo.businessEmail , $PersonalInfoItem.EmployeeID)
+            }
+        } 
+        $uri = $Response.pagination.NextPage
+        $pageNumber++                
+    } while ($pageNumber -le $Response.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false)   
+     
+    Write-Output $employeeList, $employeeEmailLookupList
 
 }
+function Get-EmployeeEmploymentsbyCompany {
 
-function Get-EmployeeTypes {
-    param ()
-
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<emp:EmployeeType_GetList xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                    </emp:EmployeeType_GetList>"
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string]
+        $CompanyId
+    )
+    
+    [hashtable]$employmentList = @{}
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.EmployeeType_GetListResponse.EmployeeType_GetListResult.EmployeeType
+    $pageSize = 50
+    [int] $pageNumber = 1
+    $uri = "$($config.BaseUrl)/companies/$CompanyId/employees/employments?pageNumber=$pageNumber&pageSize=$pageSize"
+    do {    
+        $splatParams = @{
+            Uri     = $uri
+            Method  = 'GET'
+            Headers = $Headers
+        }
 
+        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+            $splatParams['Proxy'] = $config.ProxyAddress
+        }
+        $Response = Invoke-RestMethod @splatParams 
+        if ($Response.pagination.TotalPages -gt 10000) {
+            Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+            throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+        }
+        foreach ($EmploymentItem in $Response.data) {
+            $employmentList.add($EmploymentItem.EmployeeID, $EmploymentItem)
+        } 
+        $uri = $Response.pagination.NextPage
+        $pageNumber++                
+    } while ($pageNumber -le $Response.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false)   
+     
+    Write-Output $employmentList
 }
 
-function Get-PersonalInfoWithoutBSN {
+function Get-EmployeeCostCentersByCompany {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -294,472 +309,313 @@ function Get-PersonalInfoWithoutBSN {
         $CompanyId
     )
 
-    $splatParams = @{
-        Uri      = "$($config.BaseUrl)/soap/$($config.version)/EmployeeService.asmx"
-        Service  = 'EmployeeService'
-        SoapBody = "<PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompany xmlns=`"https://api.nmbrs.nl/soap/$($config.version)/EmployeeService`">
-                        <emp:CompanyID>$CompanyId</emp:CompanyID>
-                    </PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompany>"
+    [hashtable]$costCenterList = @{}
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
     }
-    [xml]$response = Invoke-NMBRSRestMethod @splatParams
-    Write-Output $response.Envelope.Body.PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompanyResponse.PersonalInfoWithoutBSN_Get_GetAllEmployeesByCompanyResult.PersonalInfoItem
+    $pageSize = 50
+    [int] $pageNumber = 1
+    $uri = "$($config.BaseUrl)/companies/$CompanyId/employees/costcenters?pageNumber=$pageNumber&pageSize=$pageSize"
+    do {    
+        $splatParams = @{
+            Uri     = $uri
+            Method  = 'GET'
+            Headers = $Headers
+        }
+
+        if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+            $splatParams['Proxy'] = $config.ProxyAddress
+        }
+        $Response = Invoke-RestMethod @splatParams 
+        if ($Response.pagination.TotalPages -gt 10000) {
+            Write-Information "Total pages is greater than 10000, stopping to avoid infinite loop"
+            throw  "Total pages is greater than 10000, stopping to avoid infinite loop"
+        }
+        foreach ($CostCenterItem in $Response.data) {
+            $costCenterList.add($CostCenterItem.EmployeeID, $CostCenterItem)
+        } 
+        $uri = $Response.pagination.NextPage
+        $pageNumber++                
+    } while ($pageNumber -le $Response.pagination.TotalPages -and [string]::IsNullOrEmpty($uri) -eq $false  )   
+     
+    Write-Output $costCenterList
 }
+
+function Get-Employee {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string]
+        $EmployeeID
+    )
+   
+    $Headers = @{
+        'Authorization'      = "$($apiToken.token_type) $($apiToken.access_token)"
+        'X-Subscription-Key' = "$($config.subscriptionKey)"
+    }
+    $uri = "$($config.BaseUrl)/employees/$EmployeeID"
+    $splatParams = @{
+        Uri     = $uri
+        Method  = 'GET'
+        Headers = $Headers
+    }
+
+    if (-not  [string]::IsNullOrEmpty($config.ProxyAddress)) {
+        $splatParams['Proxy'] = $config.ProxyAddress
+    }
+    $Response = Invoke-RestMethod @splatParams 
+    if (-not ($Response.pagination.TotalRecords -eq 1)) {
+        throw "Expected exactly one record for EmployeeID $EmployeeID, but found $($Response.pagination.TotalRecords)"
+    }
+    $employeeDetails = $Response.data[0]    
+    Write-Output $employeeDetails
+}
+
 #endregion functions
 
 try {
-    Write-Verbose 'Retrieving NMBRS employee data'
-
-    [hashtable]$EmployeeLookupList = @{}
-    foreach ($companyid in $config.CompanyId.Split(',')) {        
-
-        # PersonalInformation
-        Write-Verbose "Retrieving PersonalInformation list of company [$CompanyId]"
-        $tmpPersonalInformationList = Get-PersonalInfoWithoutBSN -CompanyID $CompanyId
-        [hashtable]$personalInformationList = @{}
-        foreach ($PersonalInfoItem in $tmpPersonalInformationList) {
-            $personalInformationList.add($PersonalInfoItem.EmployeeID, $PersonalInfoItem)
-        }       
-
-        [hashtable]$EmployeeList = @{}
-            
-        $tmpEmployeeList = Get-EmployeeListbyCompany -CompanyID $CompanyId -EmployeeType 2
-        foreach ($employee in $tmpEmployeeList) {
-            $EmployeeList.add($employee.Number, $employee.id)
-        }
-
-        foreach ($key in $personalInformationList.Keys) {
-            $NMBRS_Employee = $personalInformationList[$key]
-
-            # Find the current personal data record of the Employee
-            $curInfo = $null
-            foreach ($info in $NMBRS_Employee.EmployeePersonalInfos.ChildNodes) {
-                if (($null -eq $Curinfo) -or ($curInfo.CreationDate -lt $info.CreationDate)) {
-                    $curInfo = $info
-                }
-            }
-            
-            $active = $EmployeeList[$curInfo.EmployeeNumber]
-            if ($null -ne $active) {          
-                $tmpEmployee = @{
-                    Number    = $curInfo.EmployeeNumber
-                    EmailWork = $curInfo.EmailWork
-                    FirstName = $curInfo.FistName
-                    LastName  = $curInfo.LastName
-                    NickName  = $curInfo.Nickname
-                    EmployeeId = $NMBRS_Employee.EmployeeId
-                }
-                if (!([string]::IsNullOrEmpty($tmpEmployee.EmailWork))) {
-                    $EmployeeLookupList.add($tmpEmployee.EmailWork, $tmpEmployee.EmployeeId)
-                }
-            }
-        }
+    Write-Information 'Retrieving NMBRS employee data'
+    Start-Sleep -Seconds 30       # Wait for 30 seconds before retrieving the auth token, to ensure any previous token requests by the departments script have been processed
+    $apiToken = Get-AuthToken    
+    
+    if ([string]::IsNullOrEmpty($config.CompanyName)) {  
+        throw "CompanyName configuration is missing or empty"
     }
+    if ([string]::IsNullOrEmpty($config.DebtorName)) {  
+        throw "DebtorName configuration is missing or empty"
+    }
+         
+    # Retrieve list of all departments managed by managers identified by their email address for each debtor  
+        
+    $ManagerEmailDepartmentsList = Get-ManagerEmailDepartmentsList      
 
-    foreach ($companyid in $config.CompanyId.Split(',')) {
+    $CompanyList = Get-CompanyList 
+    foreach ($companyName in $config.CompanyName.Split(',')) {
         
         ## Retrieve all the global lists
         [hashtable]$EmployeeList = @{}
         #Lookup all employeetypes
-        $employeeTypeList = Get-EmployeeTypes
-        Write-Verbose "Retrieving Employeelist for each type of employee"
-        #Find all employees of each type
-        foreach ($EmployeeType in $employeeTypeList) {
-            $tmpEmployeeList = Get-EmployeeListbyCompany -CompanyID $CompanyId -EmployeeType $EmployeeType.Id
-            foreach ($employee in $tmpEmployeeList) {
-                $tmpEmployee = @{
-                    Id                      = $employee.Id
-                    Number                  = $employee.Number
-                    DisplayName             = $employee.DisplayName
-                    EmployeeTypeId          = $EmployeeType.Id
-                    EmployeeTypeDescription = $EmployeeType.Description
-                }
-                $EmployeeList.add($tmpEmployee.id, $tmpEmployee)
-            }
+        $employeeType = "applicant,newHire,payroll,formerPayroll,external,formerExternal,rejectedApplicant"
+        Write-Information "Retrieving Company list"
+        $companyId = $CompanyList[$companyName].companyID
+        $debtorId = $CompanyList[$companyName].debtorID
+
+        if ($null -eq $companyId) {
+            throw "Company $companyName not found in the list of companies in NMBRS"
         }
 
-        # contracts
-        [hashtable]$ContractList = @{}
-        foreach ($ContractItem in $tmpContractList) {
-            $ContractList.add($ContractItem.EmployeeID, $ContractItem)
-        }
-
-        # departments
-        [hashtable]$DepartmentList = @{}
-        foreach ($DepartmentItem in $tmpDepartmentList) {
-            $DepartmentList.add($DepartmentItem.EmployeeID, $DepartmentItem)
-        }
-
-        # functions
-        [hashtable]$FunctionList = @{}
-        foreach ($FunctionItem in $tmpFunctionList) {
-            $FunctionList.add($FunctionItem.EmployeeID, $functionItem)
-        }
+        $companyCurrentPeriod = Get-CompanyCurrentPeriod -CompanyId $companyId
+     
         #employments
-        $tmpEmploymentList = Get-EmployeeEmploymentsByCompany -CompanyId $CompanyId
-        [hashtable]$EmploymentList = @{}
-        foreach ($EmploymentItem in $tmpEmploymentList) {
-            $EmploymentList.add($EmploymentItem.EmployeeID, $EmploymentItem)
-        }
-        # schedules
-        [hashtable]$ScheduleList = @{}
-        foreach ($ScheduleItem in $tmpScheduleList) {
-            $ScheduleList.add($ScheduleItem.EmployeeID, $ScheduleItem)
-        }
+
+        $EmploymentList = Get-EmployeeEmploymentsByCompany -CompanyId $companyId
+        $EmployeeCostCenterList = Get-EmployeeCostCentersByCompany -CompanyId $companyId        
+
+        Write-information "Retrieving Employeelist for each type of employee"
+        #Find all employees of each type
+
+        $EmployeeList, $EmployeelookupList = Get-EmployeeListbyCompany -CompanyID $companyId -EmployeeType $employeeType        
         
-        # PersonalInformation
-        $tmpPersonalInformationList = Get-PersonalInfoWithoutBSN -CompanyId $CompanyId
-        [hashtable]$personalInformationList = @{}
-        foreach ($PersonalInfoItem in $tmpPersonalInformationList) {
-            $personalInformationList.add($PersonalInfoItem.EmployeeID, $PersonalInfoItem)
-        }
-        # check on missing data in personalInformationList
-        foreach ($employeeId in $EmployeeList.keys) {
-            if ($null -eq $personalInformationList[$employeeId]) {
-                $getInformationResult = Get-CurrentPersonalInfo -EmployeeID $curEmployeeId
-                $personalInformationList[$employeeId] = $getInformationResult
-            }
-        }
+        foreach ($Employeekey in $EmployeeList.keys) {
+          
+            $tmpEmployee = $EmployeeList[$Employeekey]           
 
-        ## Global lists have been collected
-        ## main loop to create the persons
-        foreach ($key in $personalInformationList.keys) {
-            $NMBRS_Employee = $personalInformationList[$key]
-            $curEmployeeId = $NMBRS_Employee.EmployeeId
+            $Contracts = [System.Collections.Generic.List[Object]]::new()
 
-            # Find the current personal data record of the Employee
-            $curInfo = $null
-            foreach ($info in $NMBRS_Employee.EmployeePersonalInfos.ChildNodes) {
-                if (($null -eq $Curinfo) -or ($curInfo.CreationDate -lt $info.CreationDate)) {
-                    $curInfo = $info
-                }
-            }
 
-            #currentFunction
-            $getFunctionResult = Get-CurrentFunction -EmployeeID $curEmployeeId
-            if ($null -eq $getFunctionResult -or $getFunctionResult.Code -eq '0') {
-                Write-Host $curEmployeeId
-                if ($null -eq $getFunctionResult) {
-                    Write-Verbose "CurrentFunction null: [$curEmployeeId]"
-                }
-            }
             $currentFunction = @{
-                Code        = $getFunctionResult.Code
-                Description = $getFunctionResult.Description
-                ID          = $getFunctionResult.Id
+                Code        = $tmpEmployee.function.code
+                Description = $tmpEmployee.function.description
+                ID          = $tmpEmployee.function.functionId
 
             }
-
-            #currentDepartment
-            $getDepartmentResult = Get-CurrentDepartment -EmployeeID $curEmployeeId
             $currentDepartment = @{
-                Code        = $getDepartmentResult.Code
-                ID          = $getDepartmentResult.Id
-                Description = $getDepartmentResult.Description
+                Code        = $tmpEmployee.department.code
+                ID          = $tmpEmployee.department.departmentId
+                Description = $tmpEmployee.department.description
             }
-
-            #currentManager
-            $getManagerResult = Get-CurrentManager -EmployeeID $curEmployeeId
-            
-            $managerEmployeeNumber = $null
-            if (-not [string]::IsNullOrEmpty($getManagerResult.Email)) {                
-                $managerEmployeeNumber = $EmployeeLookupList[$getManagerResult.Email]                
+            # The managerID and number of the manager are generally not the same as the employeeID and employeeNumber of that manager
+            # so we need to separately retrieve the manager's employee ID and number from the employee list
+            $ManagerEmployeeID = ""
+            $ManagerEmployeeNumber = ""
+            if (-not [string]::IsNullOrEmpty($tmpEmployee.manager.email)) {
+                $ManagerEmployeeID = $EmployeelookupList[$tmpEmployee.manager.email]                                
+                if ($null -ne $ManagerEmployeeID) {
+                    $ManagerEmployee = $EmployeeList[$ManagerEmployeeID]
+                    if ($null -ne $ManagerEmployee) {
+                        $ManagerEmployeeNumber = $ManagerEmployee.PersonalInfo.basicInfo.employeeNumber 
+                    }
+                }
             }            
         
             $currentManager = @{
-                Department     = $getManagerResult.Department
-                Email          = $getManagerResult.Email
-                FirstName      = $getManagerResult.FirstName
-                Name           = $getManagerResult.Name
-                Number         = $getManagerResult.Number
-                EmployeeNumber = $managerEmployeeNumber
-                EmployeeID     = $managerEmployeeNumber                
+                Department     = $tmpEmployee.manager.department
+                Email          = $tmpEmployee.manager.email
+                FirstName      = $tmpEmployee.manager.firstName
+                Name           = $tmpEmployee.manager.lastName
+                Number         = $tmpEmployee.manager.number
+                ID             = $tmpEmployee.manager.managerID
+                EmployeeNumber = $companyId + "_" + $ManagerEmployeeNumber
+                EmployeeID     = $ManagerEmployeeID 
+
+            }
+            if ([string]::IsNullOrEmpty($ManagerEmployeeNumber)) {
+                $currentManager.EmployeeNumber = ""
             }
 
-            #currentCostcenter
-            $getCostcenterResult = Get-CurrentCostcenter -EmployeeID $curEmployeeId
+            # Retrieve the current cost centers for the employee based on the current period and the latest creation date
+            # select the cost center with the highest percentage among the current period's cost centers
 
-            if ($getCostcenterResult.Count -gt 1) {
-                $getCostcenterResult = $getCostcenterResult | Sort-Object -Property Percentage -Descending
-                $getCostcenterResult = $getCostcenterResult[0]
+            $CostCentersOfCurrentEmployee = $EmployeeCostCenterList[$Employeekey]
+            $CurrentCostcenter = $null
+            [hashtable]$tmpCurrentCostCenterList = @{}            
+            foreach ($CC in $CostCentersOfCurrentEmployee.employeeCostCenters) {
+                if ($CC.period.year -ne $companyCurrentPeriod.period.year -or $CC.period.period -ne $companyCurrentPeriod.period.period) {
+                    continue
+                }
+                if ( $null -eq $tmpCurrentCostCenterList[$CC.costcenters.costcenterId]) {
+                    $tmpCurrentCostCenterList.add($CC.costcenters.costcenterId, $CC)
+                }
+                else {
+                    if ($tmpCurrentCostCenterList[$CC.costcenters.costcenterId].createdAt -lt $CC.createdAt) {
+                        $tmpCurrentCostCenterList[$CC.costcenters.costcenterId] = $CC
+                    }
+                }              
             }
-            
+
+            foreach ($Costcenterkey in $tmpCurrentCostCenterList.Keys) {
+                if ($null -eq $CurrentCostcenter -or $tmpCurrentCostCenterList[$Costcenterkey].percentage -gt $CurrentCostcenter.percentage) {
+                    $CurrentCostcenter = $tmpCurrentCostCenterList[$Costcenterkey ]
+                }
+            }                 
+
             $tmpCostCenter = @{
-                Code        = $GetCostcenterResult.Costcenter.Code
-                Description = $GetCostcenterResult.Costcenter.Description
+                Code        = $CurrentCostcenter.costcenters.code
+                Description = $CurrentCostcenter.costcenters.description
+                Id          = $CurrentCostcenter.costcenters.costcenterId
             }
-            $tmpkostensoort = @{
-                Code        = $GetCostcenterResult.Kostensoort.Code
-                Description = $GetCostcenterResult.Kostensoort.Description
+            $tmpCostUnit = @{    
+                Code        = $CurrentCostcenter.costUnits.code
+                Description = $CurrentCostcenter.costUnits.description
+                Id          = $CurrentCostcenter.costUnits.costUnitId
             }
 
             $currentEmployeeCostCenter = @{
                 CostCenter  = $tmpCostCenter
-                Kostensoort = $tmpKostensoort
-                ID          = $GetCostcenterResult.Id
-                Percentage  = $GetCostcenterResult.Percentage
-                default     = $GetCostcenterResult.default
-            }
-
-            #employeeContracts; if more than one contract with the same Id is found, only the current one is retained
-            $employeeContracts = [System.Collections.Generic.List[Object]]::new()
-            if ($contractList[$curEmployeeId]) {
-                [hashtable] $tmpcontracts = @{}
-                foreach ($Contract in $contractList[$curEmployeeId].EmployeeContracts.ChildNodes) {
-                    if ($null -ne $Contract.ContractId) {
-                        if ($null -eq $tmpcontracts[$Contract.ContractId]) {
-                            $tmpcontracts[$Contract.ContractId] = $Contract
-                        }
-                        else {
-                            #more than one entry with the same contract id is found. This is not allowed.
-                            #so the current stored one is replaced by the "current" one from NMBRS
-                            $currentContracts = Get-CurrentContracts -EmployeeID $curEmployeeId
-                            foreach ($currentContract in $currentContracts.EmployeeContracts.ChildNodes) {
-                                if ($CurrentContract.ContractId -eq $Contract.ContractId) {
-                                    $tmpcontracts[$Contract.ContractId] = $CurrentContract
-                                }
-                            }
-                        }
-                    }
-                }
-                foreach ($ContractId in $tmpContracts.keys) {
-                    $Contract = $tmpContracts[$ContractId]
-                    $employeeContracts.add($Contract)
-                }
-            }
-
-            # --- PROCESS EMPLOYEE CONTRACTS & FILTER ---
-            $employeeContracts = [System.Collections.Generic.List[Object]]::new()
-
-            # Only process if contracts exist
-            if ($contractList[$curEmployeeId]) {
-                $allContracts = $contractList[$curEmployeeId].EmployeeContracts.ChildNodes
-                $uniqueContracts = @{}
-
-                # Deduplicate contracts by ContractId and get the current contract if needed
-                foreach ($Contract in $allContracts) {
-                    if ($null -ne $Contract.ContractId) {
-                        if (-not $uniqueContracts.ContainsKey($Contract.ContractId)) {
-                            $uniqueContracts[$Contract.ContractId] = $Contract
-                        }
-                        else {
-                            $currentContracts = Get-CurrentContracts -EmployeeID $curEmployeeId
-                            foreach ($currentContract in $currentContracts.EmployeeContracts.ChildNodes) {
-                                if ($currentContract.ContractId -eq $Contract.ContractId) {
-                                    $uniqueContracts[$Contract.ContractId] = $currentContract
-                                }
-                            }
-                        }
-                    }
-                }
-
-                # Add deduplicated contracts to list
-                foreach ($ContractId in $uniqueContracts.Keys) {
-                    $employeeContracts.Add($uniqueContracts[$ContractId])
-                }
-            }
-
-            $employeeDepartments = [System.Collections.Generic.List[Object]]::new()
-            if ($DepartmentList[$curEmployeeId]) {
-                foreach ($Department in $DepartmentList[$curEmployeeId].EmployeeDepartments.ChildNodes) {
-                    $employeeDepartments.add($Department)
-                }
-
-            }
-
-            $employeeEmployments = [System.Collections.Generic.List[Object]]::new()
-            if ($EmploymentList[$curEmployeeId]) {
-                foreach ($Employment in $EmploymentList[$curEmployeeId].EmployeeEmployments.ChildNodes) {
-                    $employeeEmployments.add($Employment)
-                }
-            }
-
-            $employeeFunctions = [System.Collections.Generic.List[Object]]::new()
-            if ($FunctionList[$curEmployeeId]) {
-                foreach ($Function in $FunctionList[$curEmployeeId].EmployeeFunctions.ChildNodes) {
-                    $employeeFunctions.add($Function)
-                }
-            }
-
-            $employeeSchedules = [System.Collections.Generic.List[Object]]::new()
-            if ($ScheduleList[$curEmployeeId]) {
-                foreach ($Schedule in $ScheduleList[$curEmployeeId].EmployeeSchedules.ChildNodes) {
-                    $employeeSchedules.add($Schedule)
-                }
-            }
-
-            if ($EmployeeList[$curEmployeeId]) {
-                $EmployeeTypeId = $EmployeeList[$curEmployeeId].EmployeeTypeId
-                $EmployeetypeDescription = $EmployeeList[$curEmployeeId].EmployeeTypeDescription
-            }
-            else {
-                $EmployeeTypeId = $null
-                $EmployeetypeDescription = $null
-            }
-
-            #personContracts
-            $Contracts = [System.Collections.Generic.List[Object]]::new()
-
-            foreach ($employeeContract in  $employeeContracts) {
-
-                $curContract = @{
-                    ExternalId                = "contract_" + $employeeContract.contractID
-                    ContractType              = "contract"
-                    ID                        = $employeeContract.contractID
-                    CreationDate              = $employeeContract.CreationDate | ConvertFrom-Nillable
-                    CurrentDepartment         = $currentDepartment
-                    CurrentEmployeeCostcenter = $currentEmployeeCostCenter
-                    CurrentFunction           = $currentFunction
-                    CurrentManager            = $currentManager
-                    EndDate                   = $employeeContract.EndDate | ConvertFrom-Nillable
-                    EmploymentType            = $employeeContract.EmployementType | ConvertFrom-Nillable  # typo in api Employement instead of Employment
-                    EmploymentSequenceTaxId   = $employeeContract.EmploymentSequenceTaxId | ConvertFrom-Nillable
-                    Indefinite                = $employeeContract.Indefinite | ConvertFrom-Nillable
-                    PhaseClassification       = $employeeContract.PhaseClassification | ConvertFrom-Nillable
-                    StartDate                 = $EmployeeContract.Startdate
-                    TrialPeriod               = $EmployeeContract.TrialPeriod | ConvertFrom-Nillable
-                    WrittenContract           = $employeeContract.WrittenContract
-                    HoursPerWeek              = $employeeContract.HoursPerWeek | ConvertFrom-Nillable
-                    CompanyId                 = $companyId
-                }
-                $Contracts.add($CurContract)
-            }
-
-            #Departments
-            foreach ($employeeDepartment in  $employeeDepartments) {
-                $curContract = @{
-                    ContractType              = "department"
-                    ExternalId                = "department_" + $employeeDepartment.Id
-                    Code                      = $employeeDepartment.Code
-                    CreationDate              = $employeeDepartment.CreationDate | ConvertFrom-Nillable
-                    CurrentDepartment         = $currentDepartment
-                    CurrentEmployeeCostcenter = $currentEmployeeCostCenter
-                    CurrentFunction           = $currentFunction
-                    CurrentManager            = $currentManager
-                    Description               = $employeeDepartment.Description
-                    Id                        = $employeeDepartment.Id
-                    StartPeriod               = $employeeDepartment.StartPeriod
-                    StartYear                 = $employeeDepartment.StartYear
-                }
-                $Contracts.add($CurContract)
-            }
+                Kostensoort = $tmpCostUnit
+                ID          = $CurrentCostcenter.costcenters.costcenterId
+                Percentage  = $CurrentCostcenter.percentage
+                default     = $CurrentCostcenter.default
+            }           
 
             #employments
-            foreach ($employeeEmployment in  $employeeEmployments) {                
-                $curContract = @{
-                    ContractType              = "Employment"
-                    ExternalId                = "Employment_" + $employeeEmployment.EmploymentId
-                    CreationDate              = $employeeEmployment.CreationDate | ConvertFrom-Nillable
-                    CurrentDepartment         = $currentDepartment
-                    CurrentEmployeeCostcenter = $currentEmployeeCostCenter
-                    CurrentFunction           = $currentFunction
-                    CurrentManager            = $currentManager
-                    EndDate                   = $employeeEmployment.Enddate | ConvertFrom-Nillable
-                    Id                        = $employeeEmployment.EmploymentId
-                    StartDate                 = $employeeEmployment.StartDate | ConvertFrom-Nillable
-                    InitialStartDate          = $employeeEmployment.InitialStartDate | ConvertFrom-Nillable
-                    CompanyId                 = $companyId
-                }
-                $Contracts.add($CurContract)
-            }
 
-            #functions
-            foreach ($employeeFunction in  $employeeFunctions) {
-                $curContract = @{
-                    ContractType              = "function"
-                    ExternalId                = "function_" + $employeeFunction.RecordId
-                    CreationDate              = $employeeFunction.CreationDate | ConvertFrom-Nillable
-                    CurrentDepartment         = $currentDepartment
-                    CurrentEmployeeCostcenter = $currentEmployeeCostCenter
-                    CurrentFunction           = $currentFunction
-                    CurrentManager            = $currentManager
-                    FunctionCode              = $employeeFunction.Function.Code
-                    FunctionDescription       = $employeeFunction.Function.Description
-                    FunctionId                = $employeeFunction.Function.Id
-                    RecordId                  = $employeeFunction.RecordId
-                    StartPeriod               = $employeeFunction.StartPeriod
-                    StartYear                 = $employeeFunction.StartYear
+            $employeeEmployments = $EmploymentList[$Employeekey]
+            if ($null -ne $employeeEmployments) {            
+                foreach ($employeeEmployment in  $employeeEmployments.employments) {                
+                    $curContract = @{
+                        ContractType              = "Employment"
+                        ExternalId                = "Employment_" + $employeeEmployment.employmentId
+                        CreationDate              = $employeeEmployment.creationDate 
+                        CurrentDepartment         = $currentDepartment
+                        CurrentEmployeeCostcenter = $currentEmployeeCostCenter
+                        CurrentFunction           = $currentFunction
+                        CurrentManager            = $currentManager
+                        EndDate                   = $employeeEmployment.enddate
+                        Id                        = $employeeEmployment.employmentId
+                        StartDate                 = $employeeEmployment.startDate 
+                        seniorityDate             = $employeeEmployment.seniorityDate  
+                        CompanyName               = $companyName
+                        CompanyId                 = $companyId
+                        DebtorId                  = $debtorId
+                    }
+                    $Contracts.add($curContract)
                 }
-                $Contracts.add($CurContract)
             }
-
-            #Schedules
-            foreach ($employeeSchedule in  $employeeSchedules) {
-                $curContract = @{
-                    ContractType              = "Schedule"
-                    ExternalId                = "Schedule_" + $employeeSchedule.Id
-                    CreationDate              = $employeeSchedule.CreationDate
-                    CurrentDepartment         = $currentDepartment
-                    CurrentEmployeeCostcenter = $currentEmployeeCostCenter
-                    CurrentFunction           = $currentFunction
-                    CurrentManager            = $currentManager
-                    Id                        = $employeeSchedule.Id
-                    StartDate                 = $employeeSchedule.StartDate
-                    HoursMonday               = $employeeSchedule.HoursMonday
-                    HoursTuesday              = $employeeSchedule.HoursTuesday
-                    HoursWednesday            = $employeeSchedule.HoursWednesday
-                    HoursThursday             = $employeeSchedule.HoursThursday
-                    HoursFriday               = $employeeSchedule.HoursFriday
-                    HoursSaturday             = $employeeSchedule.HoursSaturday
-                    HoursSunday               = $employeeSchedule.HoursSunday
-                    HoursMonday2              = $employeeSchedule.HoursMonday2
-                    HoursTuesday2             = $employeeSchedule.HoursTuesday2
-                    HoursWednesday2           = $employeeSchedule.HoursWednesday2
-                    HoursThursday2            = $employeeSchedule.HoursThursday2
-                    HoursFriday2              = $employeeSchedule.HoursFriday2
-                    HoursSaturday2            = $employeeSchedule.HoursSaturday2
-                    HoursSunday2              = $employeeSchedule.HoursSunday2
-                    ParttimePercentage        = $employeeSchedule.ParttimePercentage
-                }
-                $Contracts.add($CurContract)
-            }
-
-            # Filter contracten waarvan de einddatum meer dan 180 dagen in het het verleden ligt
+                    
+            # only include contracts of which the end date is not older than the configured threshold
             $Contracts = $Contracts | Where-Object { [string]::IsNullOrEmpty($_.EndDate) -or (Get-Date $_.EndDate) -gt (Get-Date).AddDays(-1 * $config.endDateThreshold) }
 
-            if($Contracts.Count -gt 0){
-                #Person
-                $CurPerson = @{
-                    BurgerlijkeStaat        = $curInfo.BurgerlijkeStaat
-					Birthday                = $curInfo.Birthday | ConvertFrom-Nillable
-					Contracts               = @() + $Contracts
-					CreationDate            = $curInfo.CreationDate | ConvertFrom-Nillable
-					CountryOfBirthISOCode   = $curInfo.CountryOfBirthISOCode
-					EmployeeID              = $curEmployeeId
-					EmployeeNumber          = $companyId + "_" + $curInfo.EmployeeNumber
-					EmployeeTypeId          = $EmployeeTypeId
-					EmployeeTypeDescription = $EmployeeTypeDescription
-					EmailWork               = $curInfo.EmailWork
-					FirstName               = $curInfo.FistName
-					NMBRSDisplayName        = $curInfo.DisplayName
-					Gender                  = $curInfo.Gender
-					infoId                  = $curInfo.id
-					Initials                = $info.Initials
-					LastName                = $curInfo.LastName
-					NaamStelling            = $curInfo.Naamstelling
-					NickName                = $curInfo.Nickname
-					PartnerLastName         = $curInfo.PartnerLastName
-					PartnerPrefix           = $curInfo.PartnerPrefix
-					Prefix                  = $curInfo.Prefix
-					Startperiod             = $curInfo.StartPeriod
-					StartYear               = $curInfo.StartYear
-					TelephoneMobilePrivate  = $info.TelephoneMobilePrivate
-					TelephoneMobileWork     = $curInfo.TelephoneMobileWork													  
-					Title                   = $curInfo.Title
-					TitleAfter              = $curInfo.TitleAfter
-					EmailPrivate            = $curinfo.EmailPrivate 												  
+            if ($Contracts.Count -gt 0) {
+                $curPerson = @{            
+              
+                    BurgerlijkeStaat       = $tmpEmployee.PersonalInfo.partnerInfo.maritalStatus   # for backwards compatibility
+                    Birthday               = $tmpEmployee.PersonalInfo.birthInfo.birthdate
+                    Contracts              = @() + $Contracts
+                    CountryOfBirthISOCode  = $tmpEmployee.PersonalInfo.birthInfo.birthCountry.codeISO
+                    CompanyName            = $companyName
+                    CompanyId              = $companyId
+                    DebtorId               = $debtorId
+                    CreationDate           = $tmpEmployee.PersonalInfo.createdAt
+                    EmployeeId             = $Employeekey
+                    EmployeeNumber         = $companyId + "_" + $tmpEmployee.PersonalInfo.basicInfo.employeeNumber           
+                    EmployeeTypeId         = $tmpEmployee.PersonalInfo.basicInfo.employeeType 
+                    EmailPrivate           = $tmpEmployee.PersonalInfo.contactInfo.privateEmail
+                    EmailWork              = $tmpEmployee.PersonalInfo.contactInfo.businessEmail
+                    FirstName              = $tmpEmployee.PersonalInfo.basicInfo.firstName
+                    FirstNameInFull        = $tmpEmployee.PersonalInfo.basicInfo.firstNameInFull
+                    Gender                 = $tmpEmployee.PersonalInfo.birthInfo.gender
+                    Initials               = $tmpEmployee.PersonalInfo.basicInfo.initials
+                    LastName               = $tmpEmployee.PersonalInfo.basicInfo.lastName
+                    NaamStelling           = "$($tmpEmployee.PersonalInfo.partnerInfo.ascription.Code)"
+                    NickName               = $tmpEmployee.PersonalInfo.basicInfo.firstName   
+                    MaritalStatus          = $tmpEmployee.PersonalInfo.basicInfo.maritalStatus
+                    NMBRSDisplayName       = "$($tmpEmployee.PersonalInfo.basicInfo.firstName) $($tmpEmployee.PersonalInfo.basicInfo.prefix) $($tmpEmployee.PersonalInfo.basicInfo.lastName)"
+                    PartnerLastName        = $tmpEmployee.PersonalInfo.partnerInfo.partnerName
+                    PartnerPrefix          = $tmpEmployee.PersonalInfo.partnerInfo.partnerPrefix 
+                    Prefix                 = $tmpEmployee.PersonalInfo.basicInfo.prefix  
+                    #   StartPeriod        = ""
+                    #   StartYear         =  ""                        
+                    TelephoneMobilePrivate = $tmpEmployee.PersonalInfo.contactInfo.privateMobilePhone               
+                    TelephoneMobileWork    = $tmpEmployee.PersonalInfo.contactInfo.businessMobilePhone
+                    TelephoneWork          = $tmpEmployee.PersonalInfo.contactInfo.businessPhone
+                    Title                  = ""
+                    TitleAfter             = ""          
+            
                 }
-
-                $CurPerson | Add-Member -NotePropertyMembers @{ ExternalId = $CurPerson.EmployeeID } -Force
-                $CurPerson | Add-Member -NotePropertyMembers @{ DisplayName = $CurPerson.NMBRSDisplayName } -Force
-
-                Write-Output $CurPerson | ConvertTo-Json -Depth 10
+                $curPerson | Add-Member -NotePropertyMembers @{ ExternalId = $curPerson.EmployeeID } -Force
+                $curPerson | Add-Member -NotePropertyMembers @{ DisplayName = $curPerson.NMBRSDisplayName } -Force
+                $ManagerOfId = ""
+                $ManagerOfCode = ""
+                $ManagerOfName = ""                      
+                  
+                if (-not [string]::IsNullOrEmpty($curPerson.Emailwork)) {
+                    $curdepartments = $ManagerEmailDepartmentsList[$curPerson.Emailwork]    
+                    foreach ($department in $curdepartments) { 
+                        if ($ManagerOfId -eq "") {
+                            $ManagerOfId = "$($department.departmentId)"
+                        }
+                        else {
+                            $ManagerOfId += ",$($department.departmentId)"
+                        }
+                        if ($ManagerOfCode -eq "") {
+                            $ManagerOfCode = "$($department.code)"
+                        }
+                        else {
+                            $ManagerOfCode += ",$($department.code)"
+                        }
+                        if ($ManagerOfName -eq "") {
+                            $ManagerOfName = "$($department.Description)"
+                        }
+                        else {
+                            $ManagerOfName += ",$($department.Description)"
+                        }                            
+                    }
+                }
+                                           
+            $CurPerson | Add-Member -NotePropertyMembers @{ ManagerOfIds = $ManagerOfId } -Force
+            $CurPerson | Add-Member -NotePropertyMembers @{ ManagerOfCodes = $ManagerOfCode } -Force
+            $CurPerson | Add-Member -NotePropertyMembers @{ ManagerOfNames = $ManagerOfName } -Force
+            Write-Output $CurPerson | ConvertTo-Json -Depth 10           
             }
         }
-    }
+    }          
+  
 }
 catch {
     $ex = $PSItem
-    Write-verbose -Verbose "Could not retrieve NMBRS employees. Error: $($ex.Exception.Message)"
-    Write-verbose -Verbose "Could not retrieve NMBRS employees. ErrorDetails: $($ex.ErrorDetails)"
+    Write-Information "Could not retrieve NMBRS employees. Error: $($ex.Exception.Message)"
+    Write-Information "Could not retrieve NMBRS employees. ErrorDetails: $($ex.ErrorDetails)"
     throw ($ex)
 }
