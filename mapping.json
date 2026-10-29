@@ -35,7 +35,7 @@
 		{
 			"name": "Details.Gender",
 			"mode": "complex",
-			"value": "function getGender() {\r\n    if(source.Gender == \"1\") {\r\n        return \"Man\";\r\n    }\r\n    if(source.Gender == \"2\") {\r\n        return \"Vrouw\";\r\n    }\r\n    else{\r\n        return \"Onbekend\";\r\n    }\r\n} \r\n \r\ngetGender();",
+			"value": "function getGender() {\r\n    if(source.Gender == \"male\") {\r\n        return \"Man\";\r\n    }\r\n    if(source.Gender == \"female\") {\r\n        return \"Vrouw\";\r\n    }\r\n    else{\r\n        return \"Onbekend\";\r\n    }\r\n} \r\n \r\ngetGender();",
 			"validation": {
 				"required": false
 			}
@@ -145,15 +145,7 @@
 			"validation": {
 				"required": false
 			}
-		},
-		{
-			"name": "Details.Fte",
-			"mode": "field",
-			"value": "HoursPerWeek",
-			"validation": {
-				"required": false
-			}
-		},
+		},		
 		{
 			"name": "Details.Percentage",
 			"mode": "field",

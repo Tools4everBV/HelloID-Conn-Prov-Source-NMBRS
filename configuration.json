@@ -1,72 +1,104 @@
 [
   {
-    "key": "UserName",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "UserName",
-      "description": "The UserName to connect to the API",
-      "required": true
-    }
-  },
-  {
-    "key": "Token",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "Token",
-      "type": "password",
-      "description": "The token to connect to the API",
-      "required": true
-    }
-  },
-  {
-    "key": "Domain",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "Domain",
-      "description": "The Domain to connect to the API",
-      "required": true
-    }
-  },
-  {
     "key": "BaseUrl",
     "type": "input",
-    "defaultValue": "https://api.nmbrs.nl",
+    "defaultValue": "https://api.nmbrsapp.com/api",
     "templateOptions": {
       "label": "BaseUrl",
-      "description": "The URL to the API.",
+      "description": "The URL to the API. Typically, this will be https://api.nmbrsapp.com/api",
       "required": true
     }
   },
-  {
-    "key": "version",
+   {
+    "key": "TokenUrl",
     "type": "input",
-    "defaultValue": "v3",
+    "defaultValue": "https://identityservice.nmbrs.com/connect/token",
     "templateOptions": {
-      "label": "API Version",
-      "description": "The version of the API",
+      "label": "Token URL",
+      "description": "The URL to obtain the API token. Typically, this will be https://identityservice.nmbrs.com/connect/token",
       "required": true
     }
   },
   {
-    "key": "CompanyId",
+    "key": "TokenHost",
+    "type": "input",
+    "defaultValue": "identityservice.nmbrs.com",
+    "templateOptions": {
+      "label": "Token Host DNS Name",
+      "description": "The dns name of the host to obtain the API token. Typically, this will be identityservice.nmbrs.com",
+      "required": true
+    }
+  },
+  {
+    "key": "Client_id",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "CompanyId",
-      "description": "The companyId for which the employees will be imported",
+      "label": "Client ID",
+      "description": "The client ID to connect to the API.",
       "required": true
     }
   },
   {
-    "key": "DebtorId",
+    "key": "Client_secret",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "DebtorId",
-      "description": "The DebtorId for which the departments will be imported",
+      "label": "Client secret",
+      "type": "password",
+      "description": "The client secret to connect to the API",
+      "required": true
+    }
+  },
+  {
+    "key": "SubscriptionKey",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Subscription Key",
+      "description": "The subscription key to connect to the API.",
+      "required": true
+    }
+  },
+
+  {
+    "key": "RefreshToken",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Initial RefreshToken",
+      "type": "password",
+      "description": "The initial refresh token to connect to the API, which will be used to obtain access tokens and consecutive refresh tokens.",
+      "required": true
+    }
+  },
+   {
+    "key": "RefreshTokenSaveFile",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Refresh Token Save File",
+      "description": "The file path to the file where the refresh token will be saved.",
+      "required": true
+    }
+  },  
+  {
+    "key": "CompanyName",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "CompanyName",
+      "description": "The companyNames for which the employees will be imported",
+      "required": true
+    }
+  },
+  {
+    "key": "DebtorName",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "DebtorName",
+      "description": "The DebtorName for which the departments will be imported",
       "required": true
     }
   },
@@ -76,7 +108,7 @@
     "defaultValue": 90,
     "templateOptions": {
       "label": "End date threshold",
-      "description": "The amount of days a contract can be in the past before being excluded from the imported data",
+      "description": "The amount of days a contract must be in the past before being excluded from the imported data",
       "required": true
     }
   },
